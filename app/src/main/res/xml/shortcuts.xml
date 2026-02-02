@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <capability android:name="actions.intent.CREATE_MESSAGE">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="me.milk717.rubatomanager"
+            android:targetClass="me.milk717.rubatomanager.MainActivity">
+            <parameter
+                android:name="message.recipient.@type"
+                android:key="recipientType" />
+            <parameter
+                android:name="message.text"
+                android:key="text" />
+            <url-template android:value="rubatomanager://memo?text={text}" />
+        </intent>
+    </capability>
+
+</shortcuts>
