@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import me.milk717.rubatomanager.BuildConfig
 import me.milk717.rubatomanager.ui.theme.RubatoManagerTheme
 import me.milk717.rubatomanager.ui.viewmodel.MainViewModel
 import me.milk717.rubatomanager.ui.viewmodel.MainViewModelFactory
@@ -37,19 +38,14 @@ import me.milk717.rubatomanager.ui.viewmodel.UiState
 
 class MainActivity : ComponentActivity() {
 
-    // TODO: 실제 값으로 교체하세요
-    // BuildConfig 또는 local.properties에서 가져오는 것을 권장합니다
-    private val geminiApiKey = "YOUR_GEMINI_API_KEY"
-    private val githubToken = "YOUR_GITHUB_PAT"
-    private val githubOwner = "YOUR_GITHUB_USERNAME"
-    private val githubRepo = "YOUR_OBSIDIAN_VAULT_REPO"
-
     private val viewModel: MainViewModel by viewModels {
         MainViewModelFactory(
-            geminiApiKey = geminiApiKey,
-            githubToken = githubToken,
-            githubOwner = githubOwner,
-            githubRepo = githubRepo
+            geminiApiKey = BuildConfig.GEMINI_API_KEY,
+            githubToken = BuildConfig.GITHUB_TOKEN,
+            githubOwner = BuildConfig.GITHUB_OWNER,
+            githubRepo = BuildConfig.GITHUB_REPO,
+            githubFilePath = BuildConfig.GITHUB_FILE_PATH,
+            githubBranch = BuildConfig.GITHUB_BRANCH
         )
     }
 

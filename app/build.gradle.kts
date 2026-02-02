@@ -1,8 +1,18 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     kotlin("plugin.serialization") version "2.0.21"
+}
+
+// Load local.properties
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        load(localPropertiesFile.inputStream())
+    }
 }
 
 android {
@@ -19,6 +29,14 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // BuildConfig fields from local.properties
+        buildConfigField("String", "GEMINI_API_KEY", "\"${localProperties.getProperty("GEMINI_API_KEY", "")}\"")
+        buildConfigField("String", "GITHUB_TOKEN", "\"${localProperties.getProperty("GITHUB_TOKEN", "")}\"")
+        buildConfigField("String", "GITHUB_OWNER", "\"${localProperties.getProperty("GITHUB_OWNER", "")}\"")
+        buildConfigField("String", "GITHUB_REPO", "\"${localProperties.getProperty("GITHUB_REPO", "")}\"")
+        buildConfigField("String", "GITHUB_FILE_PATH", "\"${localProperties.getProperty("GITHUB_FILE_PATH", "00_obsidian-meta/rubato-manager.md")}\"")
+        buildConfigField("String", "GITHUB_BRANCH", "\"${localProperties.getProperty("GITHUB_BRANCH", "main")}\"")
     }
 
     buildTypes {
