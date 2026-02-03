@@ -1,3 +1,12 @@
 <resources>
-    <string name="app_name">RubatoManager</string>
+    <string name="app_name">Rubato Manager</string>
+
+    <!-- App name aliases for voice recognition -->
+    <string name="app_name_short">Rubato</string>
+    <string name="app_name_korean">루바토 매니저</string>
+    <string name="app_name_korean_short">루바토</string>
+
+    <!-- Shortcut labels -->
+    <string name="shortcut_short_label">New Memo</string>
+    <string name="shortcut_long_label">Create new memo</string>
 </resources>

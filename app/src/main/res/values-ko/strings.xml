@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">루바토 매니저</string>
+
+    <!-- App name aliases for voice recognition -->
+    <string name="app_name_short">루바토</string>
+    <string name="app_name_korean">루바토 매니저</string>
+    <string name="app_name_korean_short">루바토</string>
+
+    <!-- Shortcut labels -->
+    <string name="shortcut_short_label">새 메모</string>
+    <string name="shortcut_long_label">새 메모 작성</string>
+</resources>

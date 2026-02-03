@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shortcuts xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
 
     <capability android:name="actions.intent.CREATE_NOTE">
         <intent
@@ -12,8 +11,31 @@
                 android:name="note.text"
                 android:key="text" />
 
+            <extra
+                android:name="text"
+                android:value="{text}" />
+
             <url-template android:value="rubatomanager://memo?text={text}" />
         </intent>
     </capability>
+
+    <!-- Static shortcut for quick access -->
+    <shortcut
+        android:shortcutId="create_memo"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_short_label"
+        android:shortcutLongLabel="@string/shortcut_long_label">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="rubatomanager://memo"
+            android:targetPackage="me.milk717.rubatomanager"
+            android:targetClass="me.milk717.rubatomanager.MainActivity">
+            <extra
+                android:name="source"
+                android:value="shortcut" />
+        </intent>
+        <capability-binding android:key="actions.intent.CREATE_NOTE" />
+    </shortcut>
 
 </shortcuts>
