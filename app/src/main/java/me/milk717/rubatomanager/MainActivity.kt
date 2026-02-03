@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
         // Initialize voice recorder
         viewModel.initVoiceRecorder(applicationContext)
 
-        handleIntent(intent)
+        handleIntent(intent, isNewLaunch = savedInstanceState == null)
 
         setContent {
             RubatoManagerTheme {
@@ -122,7 +122,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleIntent(intent)
+        handleIntent(intent, isNewLaunch = false)
     }
 
     private fun checkPermissionAndRecord() {
@@ -144,13 +144,31 @@ class MainActivity : ComponentActivity() {
         viewModel.startRecording()
     }
 
-    private fun handleIntent(intent: Intent?) {
+    private var hasAutoStartedRecording = false
+
+    private fun handleIntent(intent: Intent?, isNewLaunch: Boolean = false) {
         if (intent == null) return
 
         val action = intent.action
         val data = intent.data
+        val source = intent.getStringExtra("source")
+        val feature = intent.getStringExtra("feature") ?: intent.getStringExtra("featureParam")
 
-        Log.d(TAG, "Received intent - Action: $action, Data: $data")
+        Log.d(TAG, "Received intent - Action: $action, Data: $data, Source: $source, Feature: $feature, isNewLaunch: $isNewLaunch")
+
+        // Check if opened via voice shortcut (App Actions)
+        if (source == "voice_shortcut") {
+            Log.d(TAG, "Voice shortcut triggered via App Actions")
+            checkPermissionAndRecord()
+            return
+        }
+
+        // Check if opened via OPEN_APP_FEATURE with feature parameter
+        if (feature != null) {
+            Log.d(TAG, "OPEN_APP_FEATURE triggered with feature: $feature")
+            checkPermissionAndRecord()
+            return
+        }
 
         if (action == Intent.ACTION_VIEW && data != null) {
             val scheme = data.scheme
@@ -174,6 +192,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+            return
+        }
+
+        // Auto-start recording on fresh app launch (main use case)
+        if (isNewLaunch && action == Intent.ACTION_MAIN && !hasAutoStartedRecording) {
+            Log.d(TAG, "Fresh app launch - auto-starting voice recording")
+            hasAutoStartedRecording = true
+            checkPermissionAndRecord()
         }
     }
 

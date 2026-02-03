@@ -32,7 +32,11 @@
                 android:name="source"
                 android:value="voice_shortcut" />
         </intent>
-        <capability-binding android:key="actions.intent.OPEN_APP_FEATURE" />
+        <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
+            <parameter-binding
+                android:key="feature"
+                android:value="@string/shortcut_voice_short_label" />
+        </capability-binding>
     </shortcut>
 
     <!-- Text memo shortcut (manual input) -->
