@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
         // Initialize voice recorder
         viewModel.initVoiceRecorder(applicationContext)
 
-        handleIntent(intent, isNewLaunch = savedInstanceState == null)
+        handleIntent(intent)
 
         setContent {
             RubatoManagerTheme {
@@ -122,7 +122,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleIntent(intent, isNewLaunch = false)
+        handleIntent(intent)
     }
 
     private fun checkPermissionAndRecord() {
@@ -144,17 +144,16 @@ class MainActivity : ComponentActivity() {
         viewModel.startRecording()
     }
 
-    private var hasAutoStartedRecording = false
-
-    private fun handleIntent(intent: Intent?, isNewLaunch: Boolean = false) {
+    private fun handleIntent(intent: Intent?) {
         if (intent == null) return
 
         val action = intent.action
         val data = intent.data
         val source = intent.getStringExtra("source")
         val feature = intent.getStringExtra("feature") ?: intent.getStringExtra("featureParam")
+        val referrer = referrer?.toString() ?: ""
 
-        Log.d(TAG, "Received intent - Action: $action, Data: $data, Source: $source, Feature: $feature, isNewLaunch: $isNewLaunch")
+        Log.d(TAG, "Received intent - Action: $action, Data: $data, Source: $source, Feature: $feature, Referrer: $referrer")
 
         // Check if opened via voice shortcut (App Actions)
         if (source == "voice_shortcut") {
@@ -166,6 +165,13 @@ class MainActivity : ComponentActivity() {
         // Check if opened via OPEN_APP_FEATURE with feature parameter
         if (feature != null) {
             Log.d(TAG, "OPEN_APP_FEATURE triggered with feature: $feature")
+            checkPermissionAndRecord()
+            return
+        }
+
+        // Check if opened from Google Assistant
+        if (referrer.contains("google") && referrer.contains("assistant")) {
+            Log.d(TAG, "Opened from Google Assistant")
             checkPermissionAndRecord()
             return
         }
@@ -192,14 +198,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-            return
-        }
-
-        // Auto-start recording on fresh app launch (main use case)
-        if (isNewLaunch && action == Intent.ACTION_MAIN && !hasAutoStartedRecording) {
-            Log.d(TAG, "Fresh app launch - auto-starting voice recording")
-            hasAutoStartedRecording = true
-            checkPermissionAndRecord()
         }
     }
 
