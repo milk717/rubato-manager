@@ -1,11 +1,14 @@
 package me.milk717.rubatomanager
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,11 +24,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -41,7 +48,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.mikepenz.markdown.m3.Markdown
+import me.milk717.rubatomanager.ui.components.RecordingOverlay
+import me.milk717.rubatomanager.ui.components.RecordingUiState
 import me.milk717.rubatomanager.ui.theme.RubatoManagerTheme
 import me.milk717.rubatomanager.ui.viewmodel.MainViewModel
 import me.milk717.rubatomanager.ui.viewmodel.MainViewModelFactory
@@ -57,13 +67,27 @@ class MainActivity : ComponentActivity() {
             githubOwner = BuildConfig.GITHUB_OWNER,
             githubRepo = BuildConfig.GITHUB_REPO,
             githubFilePath = BuildConfig.GITHUB_FILE_PATH,
-            githubBranch = BuildConfig.GITHUB_BRANCH
+            githubBranch = BuildConfig.GITHUB_BRANCH,
+            openAiApiKey = BuildConfig.OPENAI_API_KEY
         )
+    }
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            startRecordingWithPermission()
+        } else {
+            Log.w(TAG, "Microphone permission denied")
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Initialize voice recorder
+        viewModel.initVoiceRecorder(applicationContext)
 
         handleIntent(intent)
 
@@ -72,12 +96,25 @@ class MainActivity : ComponentActivity() {
                 val uiState by viewModel.uiState.collectAsState()
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MainScreen(
-                        uiState = uiState,
-                        onSendClick = { text -> viewModel.processInput(text) },
-                        onRefreshClick = { viewModel.loadAll() },
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        MainScreen(
+                            uiState = uiState,
+                            onSendClick = { text -> viewModel.processInput(text) },
+                            onRefreshClick = { viewModel.loadAll() },
+                            onStartRecording = { checkPermissionAndRecord() },
+                            modifier = Modifier.padding(innerPadding)
+                        )
+
+                        // Recording overlay
+                        if (uiState.recordingState != RecordingUiState.Idle) {
+                            RecordingOverlay(
+                                recordingState = uiState.recordingState,
+                                audioLevel = uiState.audioLevel,
+                                transcribedText = uiState.transcribedText,
+                                onStopClick = { viewModel.stopRecording() }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -86,6 +123,25 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
+    }
+
+    private fun checkPermissionAndRecord() {
+        when {
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED -> {
+                startRecordingWithPermission()
+            }
+            else -> {
+                requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
+    }
+
+    @Suppress("MissingPermission")
+    private fun startRecordingWithPermission() {
+        viewModel.startRecording()
     }
 
     private fun handleIntent(intent: Intent?) {
@@ -100,12 +156,22 @@ class MainActivity : ComponentActivity() {
             val scheme = data.scheme
             val host = data.host
 
-            if (scheme == "rubatomanager" && host == "memo") {
-                val text = data.getQueryParameter("text")
-                Log.d(TAG, "Extracted text from deep link: $text")
+            if (scheme == "rubatomanager") {
+                when (host) {
+                    "memo" -> {
+                        // Text memo flow
+                        val text = data.getQueryParameter("text")
+                        Log.d(TAG, "Extracted text from deep link: $text")
 
-                if (!text.isNullOrBlank()) {
-                    viewModel.processInput(text)
+                        if (!text.isNullOrBlank()) {
+                            viewModel.processInput(text)
+                        }
+                    }
+                    "voice" -> {
+                        // Voice recording flow - auto start recording
+                        Log.d(TAG, "Voice recording flow triggered")
+                        checkPermissionAndRecord()
+                    }
                 }
             }
         }
@@ -121,6 +187,7 @@ fun MainScreen(
     uiState: UiState,
     onSendClick: (String) -> Unit,
     onRefreshClick: () -> Unit,
+    onStartRecording: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var inputText by remember { mutableStateOf("") }
@@ -153,6 +220,19 @@ fun MainScreen(
             TextButton(onClick = onRefreshClick) {
                 Text("새로고침")
             }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Voice Recording Button
+        FilledTonalButton(
+            onClick = onStartRecording,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = uiState.status !is Status.Processing && uiState.recordingState == RecordingUiState.Idle
+        ) {
+            Icon(Icons.Default.Mic, contentDescription = "Record")
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("음성으로 메모하기")
         }
 
         Spacer(modifier = Modifier.height(12.dp))

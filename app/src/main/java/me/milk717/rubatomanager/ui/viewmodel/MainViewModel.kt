@@ -1,6 +1,9 @@
 package me.milk717.rubatomanager.ui.viewmodel
 
+import android.Manifest
+import android.content.Context
 import android.util.Log
+import androidx.annotation.RequiresPermission
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.async
@@ -8,9 +11,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import me.milk717.rubatomanager.audio.RecordingState
+import me.milk717.rubatomanager.audio.VoiceRecorder
 import me.milk717.rubatomanager.data.model.MemoData
 import me.milk717.rubatomanager.data.repository.GithubRepository
+import me.milk717.rubatomanager.data.repository.WhisperRepository
 import me.milk717.rubatomanager.processor.IntentProcessor
+import me.milk717.rubatomanager.ui.components.RecordingUiState
+import java.io.File
 
 data class UiState(
     val status: Status = Status.Idle,
@@ -19,7 +27,11 @@ data class UiState(
     val message: String = "",
     val fileContent: String = "",
     val isLoadingFile: Boolean = false,
-    val isPromptLoaded: Boolean = false
+    val isPromptLoaded: Boolean = false,
+    // Recording states
+    val recordingState: RecordingUiState = RecordingUiState.Idle,
+    val audioLevel: Float = 0f,
+    val transcribedText: String? = null
 )
 
 sealed class Status {
@@ -35,7 +47,8 @@ class MainViewModel(
     private val githubOwner: String,
     private val githubRepo: String,
     private val githubFilePath: String = "00_obsidian-meta/rubato-manager.md",
-    private val githubBranch: String = "main"
+    private val githubBranch: String = "main",
+    private val openAiApiKey: String = ""
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UiState())
@@ -49,9 +62,165 @@ class MainViewModel(
         token = githubToken,
         branch = githubBranch
     )
+    private val whisperRepository = WhisperRepository(openAiApiKey)
+
+    private var voiceRecorder: VoiceRecorder? = null
 
     init {
         loadAll()
+    }
+
+    fun initVoiceRecorder(context: Context) {
+        voiceRecorder = VoiceRecorder(context)
+
+        // Observe recording state
+        viewModelScope.launch {
+            voiceRecorder?.recordingState?.collect { state ->
+                when (state) {
+                    is RecordingState.Idle -> {
+                        _uiState.value = _uiState.value.copy(
+                            recordingState = RecordingUiState.Idle
+                        )
+                    }
+                    is RecordingState.Recording -> {
+                        _uiState.value = _uiState.value.copy(
+                            recordingState = RecordingUiState.Recording,
+                            message = "녹음 중... (5초간 무음 시 자동 종료)"
+                        )
+                    }
+                    is RecordingState.Processing -> {
+                        _uiState.value = _uiState.value.copy(
+                            recordingState = RecordingUiState.ProcessingAudio,
+                            message = "오디오 처리 중..."
+                        )
+                    }
+                    is RecordingState.Completed -> {
+                        processAudioFile(state.audioFile)
+                    }
+                    is RecordingState.Error -> {
+                        _uiState.value = _uiState.value.copy(
+                            recordingState = RecordingUiState.Idle,
+                            status = Status.Error(state.message),
+                            message = "녹음 실패: ${state.message}"
+                        )
+                    }
+                }
+            }
+        }
+
+        // Observe audio levels
+        viewModelScope.launch {
+            voiceRecorder?.audioLevel?.collect { level ->
+                _uiState.value = _uiState.value.copy(
+                    audioLevel = level.rms.toFloat().coerceIn(0f, 1f)
+                )
+            }
+        }
+    }
+
+    @RequiresPermission(Manifest.permission.RECORD_AUDIO)
+    fun startRecording() {
+        voiceRecorder?.startRecording(viewModelScope)
+    }
+
+    fun stopRecording() {
+        voiceRecorder?.stopRecording()
+    }
+
+    private fun processAudioFile(audioFile: File) {
+        viewModelScope.launch {
+            // Step 1: Transcribe with Whisper
+            _uiState.value = _uiState.value.copy(
+                recordingState = RecordingUiState.Transcribing,
+                message = "음성을 텍스트로 변환 중..."
+            )
+
+            val transcriptionResult = whisperRepository.transcribe(audioFile)
+
+            transcriptionResult.fold(
+                onSuccess = { text ->
+                    // Check if transcription is empty
+                    if (text.isBlank()) {
+                        _uiState.value = _uiState.value.copy(
+                            recordingState = RecordingUiState.Idle,
+                            status = Status.Error("음성이 인식되지 않았습니다"),
+                            message = "음성이 인식되지 않았습니다. 다시 시도해주세요."
+                        )
+                        return@launch
+                    }
+
+                    _uiState.value = _uiState.value.copy(
+                        transcribedText = text,
+                        message = "변환 완료: $text"
+                    )
+
+                    // Proceed to classification
+                    processTranscribedText(text)
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        recordingState = RecordingUiState.Idle,
+                        status = Status.Error(error.message ?: "STT 실패"),
+                        message = "음성 변환 실패: ${error.message}"
+                    )
+                }
+            )
+
+            // Clean up audio file
+            audioFile.delete()
+        }
+    }
+
+    private suspend fun processTranscribedText(text: String) {
+        // Step 2: Classify with Gemini
+        _uiState.value = _uiState.value.copy(
+            recordingState = RecordingUiState.ClassifyingIntent,
+            status = Status.Processing,
+            lastInput = text,
+            message = "Gemini로 분석 중..."
+        )
+
+        val processResult = intentProcessor.process(text)
+
+        processResult.fold(
+            onSuccess = { memoData ->
+                // Step 3: Save to GitHub
+                _uiState.value = _uiState.value.copy(
+                    recordingState = RecordingUiState.SavingToGithub,
+                    lastMemo = memoData,
+                    message = "GitHub에 저장 중..."
+                )
+
+                val saveResult = githubRepository.appendMemo(memoData)
+
+                saveResult.fold(
+                    onSuccess = { commitUrl ->
+                        _uiState.value = _uiState.value.copy(
+                            recordingState = RecordingUiState.Idle,
+                            status = Status.Success,
+                            message = "저장 완료!",
+                            transcribedText = null
+                        )
+                        Log.i(TAG, "Voice memo saved successfully: $commitUrl")
+                        loadMemoContent()
+                    },
+                    onFailure = { error ->
+                        _uiState.value = _uiState.value.copy(
+                            recordingState = RecordingUiState.Idle,
+                            status = Status.Error(error.message ?: "저장 실패"),
+                            message = "GitHub 저장 실패: ${error.message}"
+                        )
+                    }
+                )
+            },
+            onFailure = { error ->
+                _uiState.value = _uiState.value.copy(
+                    recordingState = RecordingUiState.Idle,
+                    status = Status.Error(error.message ?: "분석 실패"),
+                    message = "Gemini 분석 실패: ${error.message}"
+                )
+            }
+        )
     }
 
     fun loadAll() {
@@ -167,8 +336,15 @@ class MainViewModel(
     fun resetStatus() {
         _uiState.value = _uiState.value.copy(
             status = Status.Idle,
-            message = ""
+            message = "",
+            recordingState = RecordingUiState.Idle,
+            transcribedText = null
         )
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        voiceRecorder?.reset()
     }
 
     companion object {

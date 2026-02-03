@@ -1,27 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <capability android:name="actions.intent.CREATE_NOTE">
+    <!-- OPEN_APP_FEATURE for voice recording - avoids Google Keep interception -->
+    <capability android:name="actions.intent.OPEN_APP_FEATURE">
         <intent
             android:action="android.intent.action.VIEW"
             android:targetPackage="me.milk717.rubatomanager"
             android:targetClass="me.milk717.rubatomanager.MainActivity">
 
             <parameter
-                android:name="note.text"
-                android:key="text" />
+                android:name="feature"
+                android:key="feature" />
 
-            <extra
-                android:name="text"
-                android:value="{text}" />
-
-            <url-template android:value="rubatomanager://memo?text={text}" />
+            <url-template android:value="rubatomanager://voice" />
         </intent>
     </capability>
 
-    <!-- Static shortcut for quick access -->
+    <!-- Voice recording shortcut -->
     <shortcut
-        android:shortcutId="create_memo"
+        android:shortcutId="voice_memo"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_voice_short_label"
+        android:shortcutLongLabel="@string/shortcut_voice_long_label">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="rubatomanager://voice"
+            android:targetPackage="me.milk717.rubatomanager"
+            android:targetClass="me.milk717.rubatomanager.MainActivity">
+            <extra
+                android:name="source"
+                android:value="voice_shortcut" />
+        </intent>
+        <capability-binding android:key="actions.intent.OPEN_APP_FEATURE" />
+    </shortcut>
+
+    <!-- Text memo shortcut (manual input) -->
+    <shortcut
+        android:shortcutId="text_memo"
         android:enabled="true"
         android:icon="@mipmap/ic_launcher"
         android:shortcutShortLabel="@string/shortcut_short_label"
@@ -35,7 +51,6 @@
                 android:name="source"
                 android:value="shortcut" />
         </intent>
-        <capability-binding android:key="actions.intent.CREATE_NOTE" />
     </shortcut>
 
 </shortcuts>

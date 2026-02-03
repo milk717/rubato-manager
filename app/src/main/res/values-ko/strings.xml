@@ -9,4 +9,8 @@
     <!-- Shortcut labels -->
     <string name="shortcut_short_label">새 메모</string>
     <string name="shortcut_long_label">새 메모 작성</string>
+
+    <!-- Voice shortcut labels -->
+    <string name="shortcut_voice_short_label">음성 메모</string>
+    <string name="shortcut_voice_long_label">음성으로 메모하기</string>
 </resources>

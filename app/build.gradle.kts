@@ -25,8 +25,8 @@ android {
         applicationId = "me.milk717.rubatomanager"
         minSdk = 36
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 6
+        versionName = "2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -37,6 +37,7 @@ android {
         buildConfigField("String", "GITHUB_REPO", "\"${localProperties.getProperty("GITHUB_REPO", "")}\"")
         buildConfigField("String", "GITHUB_FILE_PATH", "\"${localProperties.getProperty("GITHUB_FILE_PATH", "00_obsidian-meta/rubato-manager.md")}\"")
         buildConfigField("String", "GITHUB_BRANCH", "\"${localProperties.getProperty("GITHUB_BRANCH", "main")}\"")
+        buildConfigField("String", "OPENAI_API_KEY", "\"${localProperties.getProperty("OPENAI_API_KEY", "")}\"")
     }
 
     signingConfigs {
@@ -87,6 +88,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     // Retrofit for GitHub API

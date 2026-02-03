@@ -9,7 +9,8 @@ class MainViewModelFactory(
     private val githubOwner: String,
     private val githubRepo: String,
     private val githubFilePath: String = "00_obsidian-meta/rubato-manager.md",
-    private val githubBranch: String = "main"
+    private val githubBranch: String = "main",
+    private val openAiApiKey: String = ""
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -21,7 +22,8 @@ class MainViewModelFactory(
                 githubOwner = githubOwner,
                 githubRepo = githubRepo,
                 githubFilePath = githubFilePath,
-                githubBranch = githubBranch
+                githubBranch = githubBranch,
+                openAiApiKey = openAiApiKey
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
