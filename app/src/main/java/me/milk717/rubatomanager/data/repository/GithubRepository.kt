@@ -17,6 +17,25 @@ class GithubRepository(
     private val api = GithubClient.api
     private val authHeader = "Bearer $token"
 
+    suspend fun getFileContent(): Result<String> {
+        return getFileContentByPath(filePath)
+    }
+
+    suspend fun getFileContentByPath(path: String): Result<String> {
+        return try {
+            val fileResponse = api.getFileContent(
+                token = authHeader,
+                owner = owner,
+                repo = repo,
+                path = path
+            )
+            val content = decodeBase64(fileResponse.content)
+            Result.success(content)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun appendMemo(memoData: MemoData): Result<String> {
         return try {
             // 1. Get current file content and SHA
@@ -64,7 +83,7 @@ class GithubRepository(
         val timestamp = getCurrentTimestamp()
         return """
 
-## $timestamp
+###### $timestamp
 
 ```json
 {

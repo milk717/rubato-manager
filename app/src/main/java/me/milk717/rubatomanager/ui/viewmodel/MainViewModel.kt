@@ -3,6 +3,7 @@ package me.milk717.rubatomanager.ui.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,7 +16,10 @@ data class UiState(
     val status: Status = Status.Idle,
     val lastInput: String = "",
     val lastMemo: MemoData? = null,
-    val message: String = ""
+    val message: String = "",
+    val fileContent: String = "",
+    val isLoadingFile: Boolean = false,
+    val isPromptLoaded: Boolean = false
 )
 
 sealed class Status {
@@ -46,23 +50,74 @@ class MainViewModel(
         branch = githubBranch
     )
 
-    fun processVoiceInput(text: String) {
+    init {
+        loadAll()
+    }
+
+    fun loadAll() {
+        _uiState.value = _uiState.value.copy(isLoadingFile = true)
+
+        viewModelScope.launch {
+            // Load prompt and file content in parallel
+            val promptDeferred = async { loadPrompt() }
+            val contentDeferred = async { loadMemoContent() }
+
+            promptDeferred.await()
+            contentDeferred.await()
+
+            _uiState.value = _uiState.value.copy(isLoadingFile = false)
+        }
+    }
+
+    private suspend fun loadPrompt() {
+        val result = githubRepository.getFileContentByPath(PROMPT_FILE_PATH)
+
+        result.fold(
+            onSuccess = { prompt ->
+                intentProcessor.updatePrompt(prompt)
+                _uiState.value = _uiState.value.copy(isPromptLoaded = true)
+                Log.i(TAG, "Prompt loaded successfully")
+            },
+            onFailure = { error ->
+                // Use default prompt if file not found
+                _uiState.value = _uiState.value.copy(isPromptLoaded = false)
+                Log.w(TAG, "Failed to load prompt, using default: ${error.message}")
+            }
+        )
+    }
+
+    private suspend fun loadMemoContent() {
+        val result = githubRepository.getFileContent()
+
+        result.fold(
+            onSuccess = { content ->
+                _uiState.value = _uiState.value.copy(fileContent = content)
+            },
+            onFailure = { error ->
+                _uiState.value = _uiState.value.copy(
+                    fileContent = "파일을 불러올 수 없습니다: ${error.message}"
+                )
+                Log.e(TAG, "Failed to load file content", error)
+            }
+        )
+    }
+
+    fun processInput(text: String) {
         if (text.isBlank()) {
-            _uiState.value = UiState(
+            _uiState.value = _uiState.value.copy(
                 status = Status.Error("입력된 텍스트가 없습니다."),
                 message = "텍스트가 비어있습니다."
             )
             return
         }
 
-        _uiState.value = UiState(
+        _uiState.value = _uiState.value.copy(
             status = Status.Processing,
             lastInput = text,
             message = "Gemini로 분석 중..."
         )
 
         viewModelScope.launch {
-            // Step 1: Process with Gemini
             val processResult = intentProcessor.process(text)
 
             processResult.fold(
@@ -72,21 +127,22 @@ class MainViewModel(
                         message = "GitHub에 저장 중..."
                     )
 
-                    // Step 2: Save to GitHub
                     val saveResult = githubRepository.appendMemo(memoData)
 
                     saveResult.fold(
                         onSuccess = { commitUrl ->
-                            _uiState.value = UiState(
+                            _uiState.value = _uiState.value.copy(
                                 status = Status.Success,
                                 lastInput = text,
                                 lastMemo = memoData,
                                 message = "저장 완료!"
                             )
                             Log.i(TAG, "Memo saved successfully: $commitUrl")
+                            // Reload file content after successful save
+                            launch { loadMemoContent() }
                         },
                         onFailure = { error ->
-                            _uiState.value = UiState(
+                            _uiState.value = _uiState.value.copy(
                                 status = Status.Error(error.message ?: "GitHub 저장 실패"),
                                 lastInput = text,
                                 lastMemo = memoData,
@@ -97,7 +153,7 @@ class MainViewModel(
                     )
                 },
                 onFailure = { error ->
-                    _uiState.value = UiState(
+                    _uiState.value = _uiState.value.copy(
                         status = Status.Error(error.message ?: "Gemini 처리 실패"),
                         lastInput = text,
                         message = "Gemini 분석 실패: ${error.message}"
@@ -108,11 +164,15 @@ class MainViewModel(
         }
     }
 
-    fun resetState() {
-        _uiState.value = UiState()
+    fun resetStatus() {
+        _uiState.value = _uiState.value.copy(
+            status = Status.Idle,
+            message = ""
+        )
     }
 
     companion object {
         private const val TAG = "MainViewModel"
+        private const val PROMPT_FILE_PATH = "01_Permanent/prompt/rubato-manager.md"
     }
 }
